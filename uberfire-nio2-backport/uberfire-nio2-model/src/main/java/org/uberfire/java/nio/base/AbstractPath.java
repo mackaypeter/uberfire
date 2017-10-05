@@ -407,7 +407,7 @@ public abstract class AbstractPath<FS extends FileSystem>
             i++;
         }
 
-        if (i < path.length && this.path[i] != fs.getSeparator().charAt(0)) {
+        if (i < path.length && this.path[i] != getSeparator()) {
             return false;
         }
 

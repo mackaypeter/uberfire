@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.uberfire.apache.commons.io.FilenameUtils;
@@ -367,7 +368,11 @@ public abstract class AbstractPath<FS extends FileSystem>
     @Override
     public boolean startsWith(final Path other) {
         checkNotNull("other",
-                     other);
+                other);
+
+        if (other.isAbsolute() != isAbsolute()) {
+            return false;
+        }
 
         if (!(other instanceof AbstractPath)) {
             return false;
@@ -375,40 +380,20 @@ public abstract class AbstractPath<FS extends FileSystem>
 
         final AbstractPath<?> that = (AbstractPath) other;
 
-        if (that.path.length > path.length) {
+        int thisNameCount = getNameCount();
+        int thatNameCount = that.getNameCount();
+
+        if (thatNameCount > thisNameCount) {
             return false;
         }
 
-        int thisOffsetCount = getNameCount();
-        int thatOffsetCount = that.getNameCount();
+        String [] thisNames = getNamesIncludingRoot();
+        String [] thatNames = that.getNamesIncludingRoot();
 
-        if (thatOffsetCount > thisOffsetCount) {
-            return false;
-        }
-
-        if ((thatOffsetCount == thisOffsetCount) &&
-                (path.length != that.path.length)) {
-            return false;
-        }
-
-        for (int i = 0; i < thatOffsetCount; i++) {
-            final Pair<Integer, Integer> o1 = offsets.get(i);
-            final Pair<Integer, Integer> o2 = that.offsets.get(i);
-            if (!o1.equals(o2)) {
+        for (int i=0; i<thatNames.length; i++) {
+            if (!thisNames[i].equals(thatNames[i])) {
                 return false;
             }
-        }
-
-        int i = 0;
-        while (i < that.path.length) {
-            if (this.path[i] != that.path[i]) {
-                return false;
-            }
-            i++;
-        }
-
-        if (i < path.length && this.path[i] != getSeparator()) {
-            return false;
         }
 
         return true;
@@ -435,7 +420,7 @@ public abstract class AbstractPath<FS extends FileSystem>
         int thisLen = path.length;
         int thatLen = that.path.length;
 
-        if (thatLen > thisLen) {
+        if (thatLen > thisLen + 1) {
             return false;
         }
 
@@ -443,8 +428,13 @@ public abstract class AbstractPath<FS extends FileSystem>
             return false;
         }
 
-        if (that.isAbsolute() && !this.isAbsolute()) {
-            return false;
+        if (that.isAbsolute()) {
+            if (!this.isAbsolute()) {
+                return false;
+            }
+            if (!equalRoots(that)) {
+                return false;
+            }
         }
 
         int thisOffsetCount = getNameCount();
@@ -452,24 +442,25 @@ public abstract class AbstractPath<FS extends FileSystem>
 
         if (thatOffsetCount > thisOffsetCount) {
             return false;
+        }
+
+        if (thatOffsetCount == thisOffsetCount) {
+            if (thisOffsetCount == 0) {
+                return true;
+            }
+            int expectedMinLen = thisLen - 1;
+            if (this.isAbsolute() && !that.isAbsolute()) {
+                expectedMinLen-= 3;
+            }
+            if (thatLen < expectedMinLen) {
+                return false;
+            }
         } else {
-            if (thatOffsetCount == thisOffsetCount) {
-                if (thisOffsetCount == 0) {
-                    return true;
-                }
-                int expectedLen = thisLen;
-                if (this.isAbsolute() && !that.isAbsolute()) {
-                    expectedLen--;
-                }
-                if (thatLen != expectedLen) {
-                    return false;
-                }
-            } else {
-                if (that.isAbsolute()) {
-                    return false;
-                }
+            if (that.isAbsolute()) {
+                return false;
             }
         }
+
 
         int thisPos = offsets.get(thisOffsetCount - thatOffsetCount).getK1();
         int thatPos = that.offsets.get(0).getK1();
@@ -479,7 +470,13 @@ public abstract class AbstractPath<FS extends FileSystem>
         }
 
         while (thatPos < thatLen) {
-            if (this.path[thisPos++] != that.path[thatPos++]) {
+            byte thisByte = this.path[thisPos++];
+            byte thatByte = that.path[thatPos++];
+            char otherSeparator = (getSeparator() == '/') ? '\\' : '/';
+            if (thisByte == getSeparator() && thatByte == otherSeparator) {
+                continue;
+            }
+            if (thisByte != thatByte) {
                 return false;
             }
         }
@@ -572,12 +569,13 @@ public abstract class AbstractPath<FS extends FileSystem>
     @Override
     public Path relativize(final Path otherx) throws IllegalArgumentException {
         checkNotNull("otherx",
-                     otherx);
+                otherx);
         final AbstractPath other = checkInstanceOf("otherx",
-                                                   otherx,
-                                                   AbstractPath.class);
+                otherx,
+                AbstractPath.class);
 
-        if (this.equals(other)) {
+
+        if (getNamesIncludingRoot().equals(other.getNamesIncludingRoot())) {
             return emptyPath();
         }
 
@@ -585,7 +583,7 @@ public abstract class AbstractPath<FS extends FileSystem>
             throw new IllegalArgumentException("Could not relativize path 'otherx', 'isAbsolute()' for 'this' and 'otherx' should be equal.");
         }
 
-        if (isAbsolute() && !this.getRoot().equals(other.getRoot())) {
+        if (isAbsolute() && !equalRoots(other)) {
             throw new IllegalArgumentException("Could not relativize path 'otherx', 'getRoot()' for 'this' and 'otherx' should be equal.");
         }
 
@@ -602,11 +600,12 @@ public abstract class AbstractPath<FS extends FileSystem>
             i++;
         }
 
+        // aka length of different suffix, what about files though??
         int numberOfDots = getNameCount() - i;
 
         if (numberOfDots == 0 && i < other.getNameCount()) {
             return other.subpath(i,
-                                 other.getNameCount());
+                    other.getNameCount());
         }
 
         final StringBuilder sb = new StringBuilder();
@@ -623,14 +622,14 @@ public abstract class AbstractPath<FS extends FileSystem>
                 sb.append(getSeparator());
             }
             sb.append(((AbstractPath<FS>) other.subpath(i,
-                                                        other.getNameCount())).toString(false));
+                    other.getNameCount())).toString(false));
         }
 
         return newPath(fs,
-                       sb.toString(),
-                       host,
-                       isRealPath,
-                       false);
+                sb.toString(),
+                host,
+                isRealPath,
+                false);
     }
 
     private Path emptyPath() {
@@ -803,5 +802,30 @@ public abstract class AbstractPath<FS extends FileSystem>
             this.isRoot = isRoot;
             this.path = path;
         }
+    }
+
+    private String[] getNamesIncludingRoot() {
+
+        String[] names = toString().split(String.valueOf(Matcher.quoteReplacement(String.valueOf(getSeparator()))));
+
+        if (!usesWindowsFormat && isAbsolute()) {
+            return Arrays.copyOfRange(names, 1, names.length);
+        }
+
+       return names;
+    }
+
+    private static String stripAllSeparators(String path) {
+        return path.replaceAll("/", "").
+                replaceAll(Matcher.quoteReplacement("\\"), "");
+    }
+
+    private boolean equalRoots(AbstractPath other) {
+        String thisRootName = stripAllSeparators(getRoot().toString());
+        String otherRootName = stripAllSeparators(other.getRoot().toString());
+        if (!thisRootName.equals(otherRootName) || !host.equals(other.getHost())) {
+            return false;
+        }
+        return true;
     }
 }

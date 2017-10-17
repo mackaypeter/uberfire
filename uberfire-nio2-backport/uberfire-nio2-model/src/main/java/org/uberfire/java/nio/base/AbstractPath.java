@@ -387,11 +387,11 @@ public abstract class AbstractPath<FS extends FileSystem>
             return false;
         }
 
-        String [] thisNames = getNamesIncludingRoot();
-        String [] thatNames = that.getNamesIncludingRoot();
+        List<String> thisNames = getNamesIncludingRoot();
+        List<String> thatNames = that.getNamesIncludingRoot();
 
-        for (int i=0; i<thatNames.length; i++) {
-            if (!thisNames[i].equals(thatNames[i])) {
+        for (int i = 0; i < thatNames.size(); i++) {
+            if (!thisNames.get(i).equals(thatNames.get(i))) {
                 return false;
             }
         }
@@ -417,19 +417,8 @@ public abstract class AbstractPath<FS extends FileSystem>
 
         final AbstractPath<?> that = (AbstractPath) other;
 
-        int thisLen = path.length;
-        int thatLen = that.path.length;
-
-        if (thatLen > thisLen + 1) {
-            return false;
-        }
-
-        if (thisLen > 0 && thatLen == 0) {
-            return false;
-        }
-
         if (that.isAbsolute()) {
-            if (!this.isAbsolute()) {
+            if (!isAbsolute()) {
                 return false;
             }
             if (!equalRoots(that)) {
@@ -437,23 +426,24 @@ public abstract class AbstractPath<FS extends FileSystem>
             }
         }
 
-        int thisOffsetCount = getNameCount();
-        int thatOffsetCount = that.getNameCount();
-
-        if (thatOffsetCount > thisOffsetCount) {
+        if (endsWithSeparator() != that.endsWithSeparator()) {
             return false;
         }
 
-        if (thatOffsetCount == thisOffsetCount) {
-            if (thisOffsetCount == 0) {
+        int thisNameCount = getNameCount();
+        int thatNameCount = that.getNameCount();
+
+        if (thatNameCount > thisNameCount) {
+            return false;
+        }
+
+        if (thisNameCount > 0 && thatNameCount == 0) {
+            return false;
+        }
+
+        if (thatNameCount == thisNameCount) {
+            if (thisNameCount == 0) {
                 return true;
-            }
-            int expectedMinLen = thisLen - 1;
-            if (this.isAbsolute() && !that.isAbsolute()) {
-                expectedMinLen-= 3;
-            }
-            if (thatLen < expectedMinLen) {
-                return false;
             }
         } else {
             if (that.isAbsolute()) {
@@ -461,22 +451,11 @@ public abstract class AbstractPath<FS extends FileSystem>
             }
         }
 
+        int thisPosition = thisNameCount;
+        int thatPosition = thatNameCount;
 
-        int thisPos = offsets.get(thisOffsetCount - thatOffsetCount).getK1();
-        int thatPos = that.offsets.get(0).getK1();
-
-        if ((thatLen - thatPos) != (thisLen - thisPos)) {
-            return false;
-        }
-
-        while (thatPos < thatLen) {
-            byte thisByte = this.path[thisPos++];
-            byte thatByte = that.path[thatPos++];
-            char otherSeparator = (getSeparator() == '/') ? '\\' : '/';
-            if (thisByte == getSeparator() && thatByte == otherSeparator) {
-                continue;
-            }
-            if (thisByte != thatByte) {
+        while (thatPosition > 0) {
+            if (!getName(--thisPosition).equals(that.getName(--thatPosition))) {
                 return false;
             }
         }
@@ -571,13 +550,8 @@ public abstract class AbstractPath<FS extends FileSystem>
         checkNotNull("otherx",
                 otherx);
         final AbstractPath other = checkInstanceOf("otherx",
-                otherx,
-                AbstractPath.class);
-
-
-        if (getNamesIncludingRoot().equals(other.getNamesIncludingRoot())) {
-            return emptyPath();
-        }
+                                                   otherx,
+                                                   AbstractPath.class);
 
         if (isAbsolute() != other.isAbsolute()) {
             throw new IllegalArgumentException("Could not relativize path 'otherx', 'isAbsolute()' for 'this' and 'otherx' should be equal.");
@@ -585,6 +559,10 @@ public abstract class AbstractPath<FS extends FileSystem>
 
         if (isAbsolute() && !equalRoots(other)) {
             throw new IllegalArgumentException("Could not relativize path 'otherx', 'getRoot()' for 'this' and 'otherx' should be equal.");
+        }
+
+        if (getNamesIncludingRoot().equals(other.getNamesIncludingRoot())) {
+            return emptyPath();
         }
 
         if (this.path.length == 0) {
@@ -600,12 +578,11 @@ public abstract class AbstractPath<FS extends FileSystem>
             i++;
         }
 
-        // aka length of different suffix, what about files though??
         int numberOfDots = getNameCount() - i;
 
         if (numberOfDots == 0 && i < other.getNameCount()) {
             return other.subpath(i,
-                    other.getNameCount());
+                                 other.getNameCount());
         }
 
         final StringBuilder sb = new StringBuilder();
@@ -622,7 +599,7 @@ public abstract class AbstractPath<FS extends FileSystem>
                 sb.append(getSeparator());
             }
             sb.append(((AbstractPath<FS>) other.subpath(i,
-                    other.getNameCount())).toString(false));
+                                                        other.getNameCount())).toString(false));
         }
 
         return newPath(fs,
@@ -804,15 +781,12 @@ public abstract class AbstractPath<FS extends FileSystem>
         }
     }
 
-    private String[] getNamesIncludingRoot() {
-
+    private List<String> getNamesIncludingRoot() {
         String[] names = toString().split(String.valueOf(Matcher.quoteReplacement(String.valueOf(getSeparator()))));
-
         if (!usesWindowsFormat && isAbsolute()) {
-            return Arrays.copyOfRange(names, 1, names.length);
+            return Arrays.asList(Arrays.copyOfRange(names, 1, names.length));
         }
-
-       return names;
+        return Arrays.asList(names);
     }
 
     private static String stripAllSeparators(String path) {
@@ -827,5 +801,9 @@ public abstract class AbstractPath<FS extends FileSystem>
             return false;
         }
         return true;
+    }
+
+    private boolean endsWithSeparator() {
+        return path[path.length-1] == getSeparator();
     }
 }

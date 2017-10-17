@@ -105,10 +105,11 @@ public abstract class BaseSimpleFileSystem implements FileSystem,
 
     @Override
     public String getSeparator() {
-        return getSeparatorInternal();
+        return System.getProperty("file.separator",
+                UNIX_SEPARATOR_STRING);
     }
 
-    public static String getSeparator(final String path) {
+    public String getSeparator(final String path) {
         int unixIndex = path.indexOf(UNIX_SEPARATOR);
         int windowsIndex = path.indexOf(WINDOWS_SEPARATOR);
         if (unixIndex >= 0) {
@@ -123,12 +124,7 @@ public abstract class BaseSimpleFileSystem implements FileSystem,
                 return WINDOWS_SEPARATOR_STRING;
             }
         }
-        return getSeparatorInternal();
-    }
-
-    private static String getSeparatorInternal() {
-        return System.getProperty("file.separator",
-                                  UNIX_SEPARATOR_STRING);
+        return getSeparator();
     }
 
     @Override

@@ -783,7 +783,7 @@ public abstract class AbstractPath<FS extends FileSystem>
 
     private List<String> getNamesIncludingRoot() {
         String[] names = toString().split(String.valueOf(Matcher.quoteReplacement(String.valueOf(getSeparator()))));
-        if (!usesWindowsFormat && isAbsolute()) {
+        if (!usesWindowsFormat && isAbsolute() && names.length > 0) {
             return Arrays.asList(Arrays.copyOfRange(names, 1, names.length));
         }
         return Arrays.asList(names);

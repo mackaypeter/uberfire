@@ -598,8 +598,10 @@ public abstract class AbstractPath<FS extends FileSystem>
             if (sb.length() > 0) {
                 sb.append(getSeparator());
             }
-            sb.append(((AbstractPath<FS>) other.subpath(i,
-                                                        other.getNameCount())).toString(false));
+            String subpath = ((AbstractPath<FS>) other.subpath(i,
+                                                               other.getNameCount())).toString(false);
+            subpath = other.getSeparator() == getSeparator() ? subpath : subpath.replaceAll(other.quoteSeparator(), quoteSeparator());
+            sb.append(subpath);
         }
 
         return newPath(fs,
@@ -782,7 +784,7 @@ public abstract class AbstractPath<FS extends FileSystem>
     }
 
     private List<String> getNamesIncludingRoot() {
-        String[] names = toString().split(String.valueOf(Matcher.quoteReplacement(String.valueOf(getSeparator()))));
+        String[] names = toString().split(String.valueOf(quoteSeparator()));
         if (!usesWindowsFormat && isAbsolute() && names.length > 0) {
             return Arrays.asList(Arrays.copyOfRange(names, 1, names.length));
         }
@@ -801,6 +803,10 @@ public abstract class AbstractPath<FS extends FileSystem>
             return false;
         }
         return true;
+    }
+
+    private String quoteSeparator() {
+        return Matcher.quoteReplacement(String.valueOf(getSeparator()));
     }
 
     private boolean endsWithSeparator() {

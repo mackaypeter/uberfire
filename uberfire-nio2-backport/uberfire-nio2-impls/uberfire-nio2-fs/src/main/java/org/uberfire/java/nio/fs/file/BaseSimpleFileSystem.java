@@ -141,11 +141,12 @@ public abstract class BaseSimpleFileSystem implements FileSystem,
                                           false);
         }
         final StringBuilder sb = new StringBuilder();
-        sb.append(first);
+        sb.append(removeTrailingSlash(first));
+        String separator = getSeparator(first);
         for (final String segment : more) {
             if (segment.length() > 0) {
-                if (sb.length() > 0) {
-                    sb.append(getSeparator(first));
+                if (sb.length() > 0 && sb.lastIndexOf(separator) != sb.length()-1) {
+                    sb.append(separator);
                 }
                 sb.append(segment);
             }

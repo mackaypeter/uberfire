@@ -30,6 +30,7 @@ import org.uberfire.java.nio.file.attribute.FileAttributeView;
 import org.uberfire.java.nio.file.attribute.FileStoreAttributeView;
 import org.uberfire.java.nio.file.attribute.FileTime;
 import org.uberfire.java.nio.file.spi.FileSystemProvider;
+import org.apache.commons.io.FileSystemUtils;
 
 import static org.fest.assertions.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -56,8 +57,14 @@ public class SimpleWindowsFileStoreTest {
         assertThat(fileStore.name()).isNotNull().isEqualTo("c:\\");
         assertThat(fileStore.type()).isNull();
         assertThat(fileStore.isReadOnly()).isFalse();
-        assertThat(fileStore.getTotalSpace()).isEqualTo(0L);
-        assertThat(fileStore.getUsableSpace()).isEqualTo(0L);
+
+        if (TestUtils.isWindows()) {
+            assertThat(fileStore.getTotalSpace()).isNotEqualTo(0L);
+            assertThat(fileStore.getUsableSpace()).isNotEqualTo(0L);
+        } else {
+            assertThat(fileStore.getTotalSpace()).isEqualTo(0L);
+            assertThat(fileStore.getUsableSpace()).isEqualTo(0L);
+        }
 
         assertThat(fileStore.supportsFileAttributeView(BasicFileAttributeView.class)).isTrue();
         assertThat(fileStore.supportsFileAttributeView(MyFileAttributeView.class)).isFalse();
